@@ -20,6 +20,19 @@ function getShopInsideOf()
     return nil
 end
 
+function getClosestShop()
+    local dist = 400
+    local shop = nil
+    local pcoords = GetEntityCoords(PlayerPedId())
+    for n, s in pairs(Config.Shops) do -- foreach shop
+        if #(pcoords - s.Location) < dist then
+            shop = n
+            dist = #(pcoords - s.Location)
+        end
+    end
+    return shop
+end
+
 -- Handlers
 
 AddEventHandler('QBCore:Client:OnPlayerLoaded', function()
@@ -574,7 +587,11 @@ RegisterNetEvent('qb-vehicleshop:client:swapVehicle', function(data)
         end
         local veh = CreateVehicle(model, Config.Shops[shopName]["ShowroomVehicles"][data.ClosestVehicle].coords.x, Config.Shops[shopName]["ShowroomVehicles"][data.ClosestVehicle].coords.y, Config.Shops[shopName]["ShowroomVehicles"][data.ClosestVehicle].coords.z, false, false)
         SetModelAsNoLongerNeeded(model)
-        SetVehicleOnGroundProperly(veh)
+        local isonground = SetVehicleOnGroundProperly(veh)
+        if not isonground then
+            Config.Shops[k]["ShowroomVehicles"][data.ClosestVehicle].isonground = false
+            Config.Shops[k]["ShowroomVehicles"][data.ClosestVehicle].handle = veh
+        end
         SetEntityInvincible(veh,true)
         SetEntityHeading(veh, Config.Shops[shopName]["ShowroomVehicles"][data.ClosestVehicle].coords.w)
         SetVehicleDoorsLocked(veh, 3)
@@ -759,7 +776,11 @@ CreateThread(function()
             local veh = CreateVehicle(model, Config.Shops[k]["ShowroomVehicles"][i].coords.x, Config.Shops[k]["ShowroomVehicles"][i].coords.y, Config.Shops[k]["ShowroomVehicles"][i].coords.z, false, false)
             SetModelAsNoLongerNeeded(model)
             SetEntityAsMissionEntity(veh, true, true)
-            SetVehicleOnGroundProperly(veh)
+            local isonground = SetVehicleOnGroundProperly(veh)
+            if not isonground then
+                Config.Shops[k]["ShowroomVehicles"][i].isonground = false
+                Config.Shops[k]["ShowroomVehicles"][i].handle = veh
+            end
             SetEntityInvincible(veh,true)
             SetVehicleDirtLevel(veh, 0.0)
             SetVehicleDoorsLocked(veh, 3)
@@ -769,5 +790,27 @@ CreateThread(function()
         end
 			
         createVehZones(k)
+    end
+end)
+
+CreateThread(function ()
+    while true do
+        local pcoords = GetEntityCoords(PlayerPedId())
+        local shopName = getClosestShop()
+        if shopName then
+            local vehicle = Config.Shops[shopName]["ShowroomVehicles"][1]
+            local vcoords = vector3(vehicle.coords.x, vehicle.coords.y, vehicle.coords.z)
+            if #(pcoords - vcoords) < 140 and not vehicle.isonground then
+                for i = 1, #Config.Shops[shopName]["ShowroomVehicles"] do
+                    local isonground = SetVehicleOnGroundProperly(Config.Shops[shopName]["ShowroomVehicles"][i].handle)
+                    if isonground then
+                        Config.Shops[shopName]["ShowroomVehicles"][i].isonground = true
+                    else
+                        Config.Shops[shopName]["ShowroomVehicles"][i].isonground = false
+                    end
+                end
+            end
+        end
+        Wait(1000)
     end
 end)
